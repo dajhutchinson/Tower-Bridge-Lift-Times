@@ -1,2 +1,3 @@
 beautifulsoup4==4.8.0
-requests==2.9.1 
+requests==2.9.1
+pandas==1.1.4

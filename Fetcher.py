@@ -65,10 +65,17 @@ def parse_rows(rows) -> [dict]:
 
     return row_dicts
 
-if __name__=="__main__":
-    html=request_html()
-    rows=extract_rows(html)
-    row_dicts=parse_rows(rows)
+def fetch_listed_lifts() -> [dict]:
+    # fetch and parse all data currently listed on web
 
+    html=request_html() # fetch webpage
+    rows=extract_rows(html) # isolate html for rows
+    row_dicts=parse_rows(rows) # parse html
+
+    return row_dicts
+
+if __name__=="__main__":
+    # EXAMPLE - fetch available data and print
+    row_dicts=fetch_listed_lifts()
     for r in row_dicts:
         print(r)
