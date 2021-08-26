@@ -47,6 +47,9 @@ def identify_cancelled_lift(removed_lifts) -> pd.DataFrame:
 def update_data(cur_data,new_lifts,cancelled_lifts) -> pd.DataFrame:
     updated_data=None
 
+    # no updates to perform
+    if (cancelled_lifts is None) and (new_lifts is None): return cur_data
+
     # remove cancelled lifts
     if cancelled_lifts is not None:
         merged_df=pd.merge(cancelled_lifts,cur_data,on=["date","vessel_name","direction"],how="right",indicator="Exist")
@@ -66,7 +69,7 @@ def update_data(cur_data,new_lifts,cancelled_lifts) -> pd.DataFrame:
 
     return updated_data
 
-def full_update(file_path,printing=False):
+def full_update(file_path,printing=True):
     cur_db=load_data(file_path)
     new_data=pd.DataFrame(F.fetch_listed_lifts())
     new_data=new_data.reset_index(drop=True)
