@@ -1,18 +1,28 @@
 """
 MANAGER.py
 
-mange the local database.
+manage the local databases.
+two databases are used:
+ - Lift schedule
+ - Tweet schedule
+both databases are saved locally as .csv files
 """
 import Fetcher as F
 import pandas as pd
 from datetime import datetime,timedelta
 
+"""
+HELPER
+"""
 def load_data(filename:str) -> pd.DataFrame:
     return pd.read_csv(filename,index_col=0,parse_dates=["date"]).reset_index(drop=True)
 
 def save_data(df:pd.DataFrame,file_path="lift_data.csv"):
     df.to_csv(file_path)
 
+"""
+LIFT TIMES
+"""
 def find_new_lifts(new_data:pd.DataFrame,cur_db:pd.DataFrame) -> pd.DataFrame:
     # identify lifts which are in `new_data` but not in `cur_db`
     merged_df=pd.merge(new_data,cur_db,on=["date","vessel_name","direction"],how="left",indicator="Exist")
@@ -88,10 +98,9 @@ def full_update(file_path,printing=True):
     updated_data=update_data(cur_db,new_lifts,cancelled_lifts)
     save_data(updated_data,file_path=file_path)
 
-def initial(file_path):
-    new_data=pd.DataFrame(F.fetch_listed_lifts())
-    new_data=new_data.sort_values(by="date").reset_index(drop=True)
-    save_data(new_data,file_path=file_path)
+"""
+TWITTER
+"""
 
 if __name__=="__main__":
     full_update(file_path="lift_data.csv")

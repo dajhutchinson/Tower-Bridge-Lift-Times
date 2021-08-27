@@ -5,11 +5,24 @@ mangages google calendar and twitter account.
 """
 import Manager as M
 
-import datetime, os.path, pytz
+import datetime, json, os.path, pytz
+import numpy as np
+import pandas as pd
+
+from coo import Coo # tweet scheduler
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
+
+DAILY_TWEET_TIME="16:00"
+
+def find_todays_lifts(lift_data_df):
+    today=datetime.datetime.now().date()
+    todays_lifts=(lift_data_df["date"].dt.date==today)
+    todays_lifts=lift_data_df[todays_lifts]
+
+    return todays_lifts
 
 """
 ACCESS GOOGLE CALENDAR API
@@ -29,7 +42,7 @@ def connect_to_gcal():
         if creds and creds.expired and creds.refresh_token: # refresh credentials
             creds.refresh(Request())
         else: # new credentials
-            flow=InstalledAppFlow.from_client_secrets_file("credentials.json",SCOPES)
+            flow=InstalledAppFlow.from_client_secrets_file("google_credentials.json",SCOPES)
             creds=flow.run_local_server(port=0)
 
         # save credentials
@@ -40,6 +53,99 @@ def connect_to_gcal():
     service = build('calendar', 'v3', credentials=creds)
 
     return service
+
+"""
+TWITTER
+"""
+def generate_daily_tweet_schedule(lift_data_df:pd.DataFrame) -> [(str,None,str)]:
+    # assumes tweets are in order
+    lift_data_df["day"]=lift_data_df["date"].dt.date
+    lift_data_df["time"]=lift_data_df["date"].dt.time
+    group_by_day=lift_data_df.groupby(by="day",axis=0)
+    day_data=group_by_day["time"].agg([lambda x:len(np.unique(x)),lambda x:list(np.unique(x))])
+
+    first_date=datetime.datetime.now().date()
+    last_date=lift_data_df["day"].sort_values(ascending=True).iloc[-1]
+
+    delta=last_date-first_date
+
+    schedule=[]
+    for i in range(delta.days+1):
+        day=first_date+datetime.timedelta(days=i)
+
+        # scheduled time for tweet
+        date_str=day.strftime("%Y-%m-%d")
+        tweet_time="{} {}".format(date_str,DAILY_TWEET_TIME)
+
+        if day in day_data.index: # lifts occur
+            r=day_data.loc[day,:]
+            lift_count=r["<lambda_0>"]
+            lift_times=r["<lambda_1>"]
+            lift_times_strs=[t.strftime("%H:%M") for t in lift_times]
+            tweet_text="{}.\nTower Bridge will lift {} time{} today".format(date_str,lift_count,"" if lift_count==1 else "s")
+
+            if lift_count==0:
+                tweet_text+="."
+            elif lift_count==1:
+                tweet_text+=", at {}.".format(lift_times_strs[0])
+            else:
+                tweet_text+=", at {} & {}.".format(", ".join(lift_times_strs[:-1]),lift_times_strs[-1])
+
+            tweet_text+="\n\n#TowerBridge #London #GottaGetLifting"
+
+
+        else: # no lifts
+            tweet_text="No lifts today folks :(\n\n#ABoyGottaRest"
+
+        schedule.append((tweet_time,None,tweet_text)) # None for tweet template
+
+
+    return schedule
+
+def generate_individual_lift_tweet_schedule(lift_data_df:pd.DataFrame) -> [(str,None,str)]:
+
+    schedule=[]
+    for _,r in lift_data_df.iterrows():
+        tweet_text,tweet_time=generate_lift_tweet(r)
+        schedule.append((tweet_time,None,tweet_text))
+
+    return schedule
+
+def generate_lift_tweet(event_dict):
+    time_str=event_dict["date"].strftime("%H:%M")
+    vessel_name=event_dict["vessel_name"]
+    direction=event_dict["direction"].lower()
+
+    tweet_text="Tower Bridge will lift at {} to allow {} to travel {}. Enjoy the show!\n\n#TowerBridge #London #LiftingTime".format(time_str,vessel_name,direction)
+
+    tweet_time=event_dict["date"]-datetime.timedelta(minutes=15)
+    tweet_time_str=event_dict["date"].strftime("%Y-%m-%d %H:%M")
+
+    return tweet_text,tweet_time_str
+
+def schedule_tweets(schedule):
+
+    twitter_creds=json.load(open("twitter_credentials.json"))
+
+    at = Coo(
+        twitter_creds["api_key"],
+        twitter_creds["api_secret_key"],
+        twitter_creds["access_token"],
+        twitter_creds["access_token_secret"]
+        )
+
+    at.schedule(schedule,time_zone="Europe/London")
+
+def today(todays_events):
+    daily_schedule=generate_daily_tweet_schedule(todays_events)
+    inidividual_schedule=generate_individual_lift_tweet_schedule(todays_events)
+
+    joint_schedule=daily_schedule+inidividual_schedule
+
+    print("TODAYS SCHEDULE")
+    for x in joint_schedule: print(x)
+
+    schedule_tweets(joint_schedule)
 
 """
 MAINTAIN CALENDAR
@@ -134,4 +240,9 @@ def update_calendar():
     add_events(lift_data,calendar_id,service,existing_events)
 
 if __name__=="__main__":
-    update_calendar()
+    # update_calendar()
+    M.full_update(file_path="lift_data.csv")
+    lift_data_df=M.load_data("lift_data.csv")
+
+    todays_lifts=find_todays_lifts(lift_data_df)
+    today(todays_lifts)
