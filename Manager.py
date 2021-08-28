@@ -36,12 +36,18 @@ def find_new_lifts(new_data:pd.DataFrame,cur_db:pd.DataFrame) -> pd.DataFrame:
 def find_removed_lifts(new_data:pd.DataFrame,cur_db:pd.DataFrame) -> pd.DataFrame:
     # identify lifts which are not in `new_data` but are in `cur_db`
     # usually due to lift having happened (but may have been cancelled?)
+    dt_now=datetime.now()
+
     merged_df=cur_db.reset_index().merge(new_data,on=["date","vessel_name","direction"],how="left",indicator="Exist").set_index("index")
 
     removed_rows=merged_df["Exist"]=="left_only" # rows only in `cur_db`
-    if removed_rows.sum()==0: return None
+    already_happened_rows=(merged_df["date"]<dt_now)
 
-    removed_df=cur_db[removed_rows]
+    cancelled_rows=(removed_rows & ~already_happened_rows)
+
+    if cancelled_rows.sum()==0: return None
+
+    removed_df=cur_db[cancelled_rows]
     return removed_df
 
 def identify_cancelled_lift(removed_lifts) -> pd.DataFrame:

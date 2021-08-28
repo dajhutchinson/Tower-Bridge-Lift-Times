@@ -15,10 +15,12 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
-DAILY_TWEET_TIME="16:00"
+DAILY_TWEET_TIME="08:00"
+MINS_BEFORE_LIFT=15 # how many minutes before a lift to tweet
+HASHTAGS=["#GetLifting","#ItsLiftingTime","#LiftingAllDay","#LiftIsLife","#YouOnlyLiftOnce","#GottaGetLifting"]
 
-def find_todays_lifts(lift_data_df):
-    today=datetime.datetime.now().date()
+def find_todays_lifts(lift_data_df,today=None):
+    today=datetime.datetime.now().date() if today is None else today
     todays_lifts=(lift_data_df["date"].dt.date==today)
     todays_lifts=lift_data_df[todays_lifts]
 
@@ -58,6 +60,9 @@ def connect_to_gcal():
 TWITTER
 """
 def generate_daily_tweet_schedule(lift_data_df:pd.DataFrame) -> [(str,None,str)]:
+
+    if (lift_data_df.shape[0]==0): return []
+
     # assumes tweets are in order
     lift_data_df["day"]=lift_data_df["date"].dt.date
     lift_data_df["time"]=lift_data_df["date"].dt.time
@@ -91,7 +96,9 @@ def generate_daily_tweet_schedule(lift_data_df:pd.DataFrame) -> [(str,None,str)]
             else:
                 tweet_text+=", at {} & {}.".format(", ".join(lift_times_strs[:-1]),lift_times_strs[-1])
 
-            tweet_text+="\n\n#TowerBridge #London #GottaGetLifting"
+            tweet_text+="\n\n#TowerBridge #London #MorningReport"
+            hashtags=np.random.choice(HASHTAGS,size=(2),replace=False)
+            tweet_text+=" "+" ".join(hashtags)
 
 
         else: # no lifts
@@ -103,6 +110,8 @@ def generate_daily_tweet_schedule(lift_data_df:pd.DataFrame) -> [(str,None,str)]
     return schedule
 
 def generate_individual_lift_tweet_schedule(lift_data_df:pd.DataFrame) -> [(str,None,str)]:
+
+    if (lift_data_df.shape[0]==0): return []
 
     schedule=[]
     for _,r in lift_data_df.iterrows():
@@ -116,10 +125,12 @@ def generate_lift_tweet(event_dict):
     vessel_name=event_dict["vessel_name"]
     direction=event_dict["direction"].lower()
 
-    tweet_text="Tower Bridge will lift at {} to allow {} to travel {}. Enjoy the show!\n\n#TowerBridge #London #LiftingTime".format(time_str,vessel_name,direction)
+    tweet_text="Tower Bridge will lift at {} to allow {} to travel {}. Enjoy the show!\n\n#TowerBridge #London".format(time_str,vessel_name,direction)
+    hashtags=np.random.choice(HASHTAGS,size=(2),replace=False)
+    tweet_text+=" "+" ".join(hashtags)
 
-    tweet_time=event_dict["date"]-datetime.timedelta(minutes=15)
-    tweet_time_str=event_dict["date"].strftime("%Y-%m-%d %H:%M")
+    tweet_time=event_dict["date"]-datetime.timedelta(minutes=MINS_BEFORE_LIFT)
+    tweet_time_str=tweet_time.strftime("%Y-%m-%d %H:%M")
 
     return tweet_text,tweet_time_str
 
@@ -136,16 +147,27 @@ def schedule_tweets(schedule):
 
     at.schedule(schedule,time_zone="Europe/London")
 
-def today(todays_events):
-    daily_schedule=generate_daily_tweet_schedule(todays_events)
+def todays_twitter(todays_events):
+    # create schedule
+    daily_schedule=generate_daily_tweet_schedule(todays_events) # day summary
     inidividual_schedule=generate_individual_lift_tweet_schedule(todays_events)
-
     joint_schedule=daily_schedule+inidividual_schedule
 
-    print("TODAYS SCHEDULE")
-    for x in joint_schedule: print(x)
+    # remove tweets which should have alredy been sent
+    now=datetime.datetime.now()
+    final_schedule=[]
+    for tweet in joint_schedule:
+        dt=datetime.datetime.strptime(tweet[0],"%Y-%m-%d %H:%M")
+        if dt>now: final_schedule.append(tweet)
+        else: print("Skipping ",tweet)
 
-    schedule_tweets(joint_schedule)
+    # print twitter schedule
+    if len(final_schedule)!=0:
+        print("TODAY'S SCHEDULE")
+        for x in final_schedule: print(x)
+        schedule_tweets(final_schedule)
+    else:
+        print("EMPTY schedule")
 
 """
 MAINTAIN CALENDAR
@@ -239,10 +261,22 @@ def update_calendar():
 
     add_events(lift_data,calendar_id,service,existing_events)
 
+def today(today=None):
+    # set up schedule for todays tweets (set `today` to whichever day you wish to scheule for. defaults to today)
+    # e.g. today="2021-08-27"
+
+    # update data
+    M.full_update(file_path="lift_data.csv")
+    update_calendar()
+
+    # todays tweets
+    lift_data_df=M.load_data("lift_data.csv")
+    today=datetime.datetime.now().date() if today is None else today
+
+    lift_data_df=M.load_data("lift_data.csv")
+    todays_lifts=find_todays_lifts(lift_data_df,today=today)
+    todays_twitter(todays_lifts)
+
 if __name__=="__main__":
     # update_calendar()
-    M.full_update(file_path="lift_data.csv")
-    lift_data_df=M.load_data("lift_data.csv")
-
-    todays_lifts=find_todays_lifts(lift_data_df)
-    today(todays_lifts)
+    today()

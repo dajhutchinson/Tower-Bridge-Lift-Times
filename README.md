@@ -14,4 +14,4 @@ The Google calendar can be subscribed to with the following [link](https://calen
 
 ## Twitter Account
 
-The twitter account (@TowerBridgeTime) can be found with the following link [link](https://twitter.com/TowerBridgeTime)
+The twitter account (@TowerBridgeTime) can be found with the following [link](https://twitter.com/TowerBridgeTime)
