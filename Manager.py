@@ -10,6 +10,7 @@ both databases are saved locally as .csv files
 import Fetcher as F
 import pandas as pd
 from datetime import datetime,timedelta
+from secrets import PROJECT_PATH
 
 """
 HELPER
@@ -17,7 +18,7 @@ HELPER
 def load_data(filename:str) -> pd.DataFrame:
     return pd.read_csv(filename,index_col=0,parse_dates=["date"]).reset_index(drop=True)
 
-def save_data(df:pd.DataFrame,file_path="lift_data.csv"):
+def save_data(df:pd.DataFrame,file_path=PROJECT_PATH+"lift_data.csv"):
     df.to_csv(file_path)
 
 """
@@ -109,4 +110,4 @@ TWITTER
 """
 
 if __name__=="__main__":
-    full_update(file_path="lift_data.csv")
+    full_update(file_path=PROJECT_PATH+"lift_data.csv")

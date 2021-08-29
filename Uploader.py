@@ -4,6 +4,7 @@ UPLOADER.py
 mangages google calendar and twitter account.
 """
 import Manager as M
+from secrets import PROJECT_PATH
 
 import datetime, json, os.path, pytz
 import numpy as np
@@ -35,8 +36,8 @@ def connect_to_gcal():
     creds=None
 
     # credential file exists
-    if os.path.exists("token.json"):
-        creds=Credentials.from_authorized_user_file("token.json",SCOPES)
+    if os.path.exists(PROJECT_PATH+"token.json"):
+        creds=Credentials.from_authorized_user_file(PROJECT_PATH+"token.json",SCOPES)
 
     # no valid credentials (may open browser to confirm scopes)
     if (not creds) or (not creds.valid):
@@ -48,7 +49,7 @@ def connect_to_gcal():
             creds=flow.run_local_server(port=0)
 
         # save credentials
-        with open('token.json', 'w') as token:
+        with open(PROJECT_PATH+'token.json', 'w') as token:
             token.write(creds.to_json())
 
     # build api service
@@ -136,7 +137,7 @@ def generate_lift_tweet(event_dict):
 
 def schedule_tweets(schedule):
 
-    twitter_creds=json.load(open("twitter_credentials.json"))
+    twitter_creds=json.load(open(PROJECT_PATH+"twitter_credentials.json"))
 
     at = Coo(
         twitter_creds["api_key"],
@@ -253,7 +254,7 @@ def update_calendar():
         return None
 
     # read events from db
-    lift_data=M.load_data("lift_data.csv")
+    lift_data=M.load_data(PROJECT_PATH+"lift_data.csv")
     lift_data=list(lift_data.T.to_dict().values()) # list of dicts
 
     existing_events=get_event_list(calendar_id,service)
@@ -266,14 +267,14 @@ def today(today=None):
     # e.g. today="2021-08-27"
 
     # update data
-    M.full_update(file_path="lift_data.csv")
+    M.full_update(file_path=PROJECT_PATH+"lift_data.csv")
     update_calendar()
 
     # todays tweets
-    lift_data_df=M.load_data("lift_data.csv")
+    lift_data_df=M.load_data(PROJECT_PATH+"lift_data.csv")
     today=datetime.datetime.now().date() if today is None else today
 
-    lift_data_df=M.load_data("lift_data.csv")
+    lift_data_df=M.load_data(PROJECT_PATH+"lift_data.csv")
     todays_lifts=find_todays_lifts(lift_data_df,today=today)
     todays_twitter(todays_lifts)
 
